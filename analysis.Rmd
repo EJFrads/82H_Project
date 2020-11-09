@@ -1,0 +1,43 @@
+---
+title: "82H Analysis Log"
+author: "Emily Fradley"
+date: "09/11/2020"
+output:
+  bookdown::pdf_document2: default
+  bookdown::word_document2: default
+  bookdown::html_document2: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, 
+                      warning = FALSE,
+                      message = FALSE,
+                      fig.retina = 3)
+
+##Create directories for work
+
+dir.create("raw_data")
+dir.create("processed_data")
+dir.create("figures")
+```
+
+```{r packages, include=FALSE}
+#Load packages
+library(tidyverse)
+```
+
+#Stem Cell RNA-Seq Analysis
+
+We will be using `scran::findMarkers` to analyze differences in expression data between LT-HSCs, HSPCs and Prog cells. 
+
+First we need to import the data and check the format and the quality to determine whether it is appropriate for the analysis we are going to do and to be able to interpret the results later.
+
+```{r import, include=FALSE}
+#Import as matrix for findMarker to work, make sure to add row names
+lthsc <- as.matrix(read.csv("raw_data/secretome_lthsc.csv", row.names=1))
+hspc <- as.matrix(read.csv("raw_data/secretome_hspc.csv", row.names = 1))
+prog <- as.matrix(read.csv("raw_data/secretome_prog.csv", row.names = 1))
+```
+
+
+We need to set up the data so that the `findMarkers` function can access the expression data and a list of cell types so that is the first part of the analysis to set up.
