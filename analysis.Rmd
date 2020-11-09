@@ -37,7 +37,53 @@ First we need to import the data and check the format and the quality to determi
 lthsc <- as.matrix(read.csv("raw_data/secretome_lthsc.csv", row.names=1))
 hspc <- as.matrix(read.csv("raw_data/secretome_hspc.csv", row.names = 1))
 prog <- as.matrix(read.csv("raw_data/secretome_prog.csv", row.names = 1))
+
 ```
+
+Summarizing some of the data to make ourselves more familiar
+```{r data structure, include=True, echo=TRUE}
+#Use ncol and nrow to extract the number of cells and genes respectively
+#This can be double checked against the numbers reported by the str function
+
+#LTHSCs number of cells and genes
+ncol(lthsc)
+nrow(lthsc)
+
+#HSPCs number of cells and genes
+ncol(hspc)
+nrow(hspc)
+
+#Prog number of cells and genes
+ncol(prog)
+nrow(prog)
+```
+
+So all the data sets have 423 genes or rows and the number of cells are respectively:
+- LTHSCs: 155
+- HSPCs: 701
+- Prog Cells: 798
+
+
+Next we can look to see if any of the genes or cells from the different data sets overlap using the `intersect` function
+
+```{r data overlap, include=TRUE}
+intersect(rownames(hspc), rownames(lthsc))
+intersect(rownames(hspc), rownames(prog))
+#423 overlapping genes, i.e. all genes are the same for all the data sets
+
+intersect(colnames(hspc), colnames(lthsc))
+intersect(colnames(hspc), colnames(prog))
+intersect(colnames(lthsc), colnames(prog))
+#all returned character(0) therefore there is no overlap in the cells between the data sets
+
+```
+
+Now we know that all the data sets contain the same 423 genes but all have expression data for unique cells. This is what we expected.
+
+The original collection of the expression data contained over 2000 genes, our data has been cut down to include just over 400 genes. This has likely excluded any genes that showed no expression across the board of the different HSCs as any genes that weren't expressed would have been pointless to include in the analysis as we are looking to differentiate the cells based on differing expression patterns. There could be other reasons for the removal of this data though
+
+
+
 
 
 We need to set up the data so that the `findMarkers` function can access the expression data and a list of cell types so that is the first part of the analysis to set up.
