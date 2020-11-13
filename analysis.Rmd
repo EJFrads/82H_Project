@@ -1,11 +1,12 @@
 ---
-title: "82H Analysis Log"
+title: "82H: Stem Cell RNA-Seq Analysis Log"
 author: "Emily Fradley"
 date: "09/11/2020"
 output:
   bookdown::pdf_document2: default
   bookdown::word_document2: default
   bookdown::html_document2: default
+bibliography: references.bib
 ---
 
 ```{r setup, include=FALSE}
@@ -24,15 +25,17 @@ dir.create("figures")
 ```{r packages, include=FALSE}
 #Load packages
 library(tidyverse)
+library(bookdown)
+library(citr)
 ```
 
-#Stem Cell RNA-Seq Analysis
+# Set Up, Import and Tidy
 
-We will be using `scran::findMarkers` to analyze differences in expression data between LT-HSCs, HSPCs and Prog cells. 
+We will be using R package `scran` [@scran] to analyze differences in expression data between LT-HSCs, HSPCs and Prog cells. 
 
-First we need to import the data and check the format and the quality to determine whether it is appropriate for the analysis we are going to do and to be able to interpret the results later.
+First we need to import the data, tidy the format and check it's structure to determine whether it is appropriate for the analysis we are going to do and to be able to interpret the results later. The data is in the form of 3 different data sets, one for each cell type.
 
-```{r import, include=FALSE}
+```{r import}
 #Import as matrix for findMarker to work, make sure to add row names
 lthsc <- as.matrix(read.csv("raw_data/secretome_lthsc.csv", row.names=1))
 hspc <- as.matrix(read.csv("raw_data/secretome_hspc.csv", row.names = 1))
@@ -40,8 +43,11 @@ prog <- as.matrix(read.csv("raw_data/secretome_prog.csv", row.names = 1))
 
 ```
 
-Summarizing some of the data to make ourselves more familiar
-```{r data structure, include=True, echo=TRUE}
+## Data Stucture
+
+First we will check to see what the dimensions of the imported data looks like. Visually looking at the data shows us that each **gene is a row** and **each cell is a column**. We can find out the exact number of each using the code below:  
+<!-- Summarizing some of the data to make ourselves more familiar -->
+```{r data structure, echo=TRUE, results='hide'}
 #Use ncol and nrow to extract the number of cells and genes respectively
 #This can be double checked against the numbers reported by the str function
 
@@ -58,32 +64,42 @@ ncol(prog)
 nrow(prog)
 ```
 
-So all the data sets have 423 genes or rows and the number of cells are respectively:
-- LTHSCs: 155
-- HSPCs: 701
-- Prog Cells: 798
+So all the data sets have **`r nrow(hspc)` genes** or rows and the **number of cells** (i.e. columns) are respectively:  
+- **LTHSCs: `r ncol(lthsc)`**  
+- **HSPCs: `r ncol(hspc)`**  
+- **Prog Cells: `r ncol(prog)`**  
 
 
-Next we can look to see if any of the genes or cells from the different data sets overlap using the `intersect` function
+Next we can look to see if any of the genes or cells from the different data sets overlap using the `intersect` function.
 
-```{r data overlap, include=TRUE}
-intersect(rownames(hspc), rownames(lthsc))
-intersect(rownames(hspc), rownames(prog))
+```{r data overlap, include=FALSE}
+overlap_row <- intersect(rownames(hspc), rownames(lthsc)) %>% length()
+intersect(rownames(hspc), rownames(prog)) %>% length()
 #423 overlapping genes, i.e. all genes are the same for all the data sets
 
-intersect(colnames(hspc), colnames(lthsc))
+overlap_col <- intersect(colnames(hspc), colnames(lthsc))
 intersect(colnames(hspc), colnames(prog))
 intersect(colnames(lthsc), colnames(prog))
 #all returned character(0) therefore there is no overlap in the cells between the data sets
 
 ```
 
-Now we know that all the data sets contain the same 423 genes but all have expression data for unique cells. This is what we expected.
+By comparing the rows and columns of each data set, we can see that the number of overlapping rows is `r overlap_row` for all 3 data sets. This is the same as the total number of rows of all the data sets so we have confirmed that all the data is showing **expression data for the same genes**.  
 
+For the overlap of the columns (i.e. the individual cells) we find that we have `r overlap_col` overlap between the data sets. This means **all the cells in each set are different from each other** and **different from the cells in the other data sets**.  
+
+Now we know that all the data sets contain the same `r overlap_row`  genes but all have expression data for unique cells. This is what we expected.  
+
+***
+### Note
 The original collection of the expression data contained over 2000 genes, our data has been cut down to include just over 400 genes. This has likely excluded any genes that showed no expression across the board of the different HSCs as any genes that weren't expressed would have been pointless to include in the analysis as we are looking to differentiate the cells based on differing expression patterns. There could be other reasons for the removal of this data though
-
+***
 
 
 
 
 We need to set up the data so that the `findMarkers` function can access the expression data and a list of cell types so that is the first part of the analysis to set up.
+
+
+# References
+
