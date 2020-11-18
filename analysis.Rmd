@@ -96,9 +96,50 @@ The original collection of the expression data contained over 2000 genes, our da
 ***
 
 
+## Normalised or Log Data
+
+To find genes of interest we are going to use the `findMarkers` function but to do that the expression data needs to be in **normalised log format**. The data has already been normalised and corrected for biases so all we need to do is check whether the data is in linear or log format.   
+We can do this by checking the the maximum value of the expression data. We would expect linear data to return a very large number for this (in the thousands). In contrast we would expect log data to return a relatively small maximum value.
+
+```{r check log, include=FALSE}
+max_hspc <- max(hspc, na.rm = T)
+max_lthsc <- max(lthsc, na.rm = T)
+max_prog <- max(prog, na.rm = T)
+```
+
+The highest expression figures for the different data sets are as follows:  
+HSPCs: `r max_hspc`  
+LTHSC: `r max_lthsc`  
+Prog Cells: `r max_prog`  
+
+This shows us that our results are most certainly log transformed and we can continue with the analysis of the data without having to transform it further. 
+
+## Summary Statistics
+
+Finally we want to summarize the data we have for each gene and cell in a way that is easy to absorb (i.e. a plot). To do this we first have to generate some summary data including the mean and the standard deviation for each cell.
+
+```{r summary-stats, include=FALSE}
+#HSPC summary
+hspc_mean_cell <- apply(hspc, 2, mean)
+hspc_mean_gene <- apply(hspc, 1, mean)
+hspc_sd_cell <- apply(hspc, 2, sd)
+hspc_sd_gene <- apply(hspc, 1, sd)
+
+#LTHSC
+lthsc_mean_cell <- apply(lthsc, 2, mean)
+lthsc_mean_gene <- apply(lthsc, 1, mean)
+lthsc_sd_cell <- apply(lthsc, 2, sd)
+lthsc_sd_gene <- apply(lthsc, 1, sd)
+
+#Prog cells
+prog_mean_cell <- apply(prog, 2, mean)
+prog_mean_gene <- apply(prog, 1, mean)
+prog_sd_cell <- apply(prog, 2, sd)
+prog_sd_gene <- apply(prog, 1, sd)
+
+```
 
 
-We need to set up the data so that the `findMarkers` function can access the expression data and a list of cell types so that is the first part of the analysis to set up.
 
 
 # References
