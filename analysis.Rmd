@@ -122,23 +122,57 @@ Finally we want to summarize the data we have for each gene and cell in a way th
 #HSPC summary
 hspc_mean_cell <- apply(hspc, 2, mean)
 hspc_mean_gene <- apply(hspc, 1, mean)
+hspc_means <- c(hspc_mean_cell, hspc_mean_gene)
+
 hspc_sd_cell <- apply(hspc, 2, sd)
 hspc_sd_gene <- apply(hspc, 1, sd)
+hspc_sds <- c(hspc_sd_cell, hspc_sd_gene)
+         ###Combine into data.frame##
+hspc_sum <- data.frame(Mean=hspc_means, SD=hspc_sds)
+
 
 #LTHSC
 lthsc_mean_cell <- apply(lthsc, 2, mean)
 lthsc_mean_gene <- apply(lthsc, 1, mean)
+lthsc_means <- c(lthsc_mean_cell, lthsc_mean_gene)
+
 lthsc_sd_cell <- apply(lthsc, 2, sd)
 lthsc_sd_gene <- apply(lthsc, 1, sd)
+lthsc_sds <- c(lthsc_sd_cell, lthsc_sd_gene)
+         ###Combine into data.frame##
+lthsc_sum <- data.frame(Mean=lthsc_means, SD=lthsc_sds)
+
 
 #Prog cells
 prog_mean_cell <- apply(prog, 2, mean)
 prog_mean_gene <- apply(prog, 1, mean)
+prog_means <- c(prog_mean_cell, prog_mean_gene)
+
 prog_sd_cell <- apply(prog, 2, sd)
 prog_sd_gene <- apply(prog, 1, sd)
+prog_sds <- c(prog_sd_cell, prog_sd_gene)
+        ###Combine into data.frame##
+prog_sum <- data.frame(Mean=prog_means, SD=prog_sds)
 
 ```
 
+
+```{r tidy-data, include=FALSE}
+hspc_tidy <- hspc %>% 
+              as_tibble(rownames='Gene') %>% 
+              gather('Cell', 'Count', -Gene) %>% 
+              mutate(CellType="HSPC")
+
+lthsc_tidy <- lthsc %>% 
+              as_tibble(rownames='Gene') %>% 
+              gather('Cell', 'Count', -Gene) %>% 
+              mutate(CellType="LTHSC")
+
+prog_tidy <- prog %>% 
+              as_tibble(rownames='Gene') %>% 
+              gather('Cell', 'Count', -Gene) %>% 
+              mutate(CellType="Progenetor")
+```
 
 
 
