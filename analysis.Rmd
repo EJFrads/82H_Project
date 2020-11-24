@@ -27,11 +27,14 @@ dir.create("figures")
 library(tidyverse)
 library(bookdown)
 library(citr)
+library(GGally)
+library(pheatmap)
+library(scran)
 ```
 
-# Set Up, Import and Tidy
+# Set Up, Tidy, and Summerise
 
-We will be using R package `scran` [@scran] to analyze differences in expression data between LT-HSCs, HSPCs and Prog cells. 
+We will be using R package `scran` [@scran] to analyse differences in expression data between LT-HSCs, HSPCs and Prog cells.
 
 First we need to import the data, tidy the format and check it's structure to determine whether it is appropriate for the analysis we are going to do and to be able to interpret the results later. The data is in the form of 3 different data sets, one for each cell type.
 
@@ -43,10 +46,11 @@ prog <- as.matrix(read.csv("raw_data/secretome_prog.csv", row.names = 1))
 
 ```
 
-## Data Stucture
+## Data Structure
 
-First we will check to see what the dimensions of the imported data looks like. Visually looking at the data shows us that each **gene is a row** and **each cell is a column**. We can find out the exact number of each using the code below:  
+First we will check to see what the dimensions of the imported data looks like. Visually looking at the data shows us that each **gene is a row** and **each cell is a column**. We can find out the exact number of each using the code below:\
 <!-- Summarizing some of the data to make ourselves more familiar -->
+
 ```{r data structure, echo=TRUE, results='hide'}
 #Use ncol and nrow to extract the number of cells and genes respectively
 #This can be double checked against the numbers reported by the str function
@@ -64,11 +68,10 @@ ncol(prog)
 nrow(prog)
 ```
 
-So all the data sets have **`r nrow(hspc)` genes** or rows and the **number of cells** (i.e. columns) are respectively:  
-- **LTHSCs: `r ncol(lthsc)`**  
-- **HSPCs: `r ncol(hspc)`**  
-- **Prog Cells: `r ncol(prog)`**  
-
+So all the data sets have **`r nrow(hspc)` genes** or rows and the **number of cells** (i.e. columns) are respectively:\
+- **LTHSCs: `r ncol(lthsc)`**\
+- **HSPCs: `r ncol(hspc)`**\
+- **Prog Cells: `r ncol(prog)`**
 
 Next we can look to see if any of the genes or cells from the different data sets overlap using the `intersect` function.
 
@@ -84,21 +87,21 @@ intersect(colnames(lthsc), colnames(prog))
 
 ```
 
-By comparing the rows and columns of each data set, we can see that the number of overlapping rows is `r overlap_row` for all 3 data sets. This is the same as the total number of rows of all the data sets so we have confirmed that all the data is showing **expression data for the same genes**.  
+By comparing the rows and columns of each data set, we can see that the number of overlapping rows is `r overlap_row` for all 3 data sets. This is the same as the total number of rows of all the data sets so we have confirmed that all the data is showing **expression data for the same genes**.
 
-For the overlap of the columns (i.e. the individual cells) we find that we have `r overlap_col` overlap between the data sets. This means **all the cells in each set are different from each other** and **different from the cells in the other data sets**.  
+For the overlap of the columns (i.e. the individual cells) we find that we have `r overlap_col` overlap between the data sets. This means **all the cells in each set are different from each other** and **different from the cells in the other data sets**.
 
-Now we know that all the data sets contain the same `r overlap_row`  genes but all have expression data for unique cells. This is what we expected.  
+Now we know that all the data sets contain the same `r overlap_row` genes but all have expression data for unique cells. This is what we expected.
 
-***
+------------------------------------------------------------------------
+
 ### Note
-The original collection of the expression data contained over 2000 genes, our data has been cut down to include just over 400 genes. This has likely excluded any genes that showed no expression across the board of the different HSCs as any genes that weren't expressed would have been pointless to include in the analysis as we are looking to differentiate the cells based on differing expression patterns. There could be other reasons for the removal of this data though
-***
 
+The original collection of the expression data contained over 2000 genes, our data has been cut down to include just over 400 genes. This has likely excluded any genes that showed no expression across the board of the different HSCs as any genes that weren't expressed would have been pointless to include in the analysis as we are looking to differentiate the cells based on differing expression patterns. There could be other reasons for the removal of this data though \*\*\*
 
-## Normalised or Log Data
+## Linear or Log Data
 
-To find genes of interest we are going to use the `findMarkers` function but to do that the expression data needs to be in **normalised log format**. The data has already been normalised and corrected for biases so all we need to do is check whether the data is in linear or log format.   
+To find genes of interest we are going to use the `findMarkers` function but to do that the expression data needs to be in **normalised log format**. The data has already been normalised and corrected for biases so all we need to do is check whether the data is in linear or log format.\
 We can do this by checking the the maximum value of the expression data. We would expect linear data to return a very large number for this (in the thousands). In contrast we would expect log data to return a relatively small maximum value.
 
 ```{r check log, include=FALSE}
@@ -107,12 +110,12 @@ max_lthsc <- max(lthsc, na.rm = T)
 max_prog <- max(prog, na.rm = T)
 ```
 
-The highest expression figures for the different data sets are as follows:  
-HSPCs: `r max_hspc`  
-LTHSC: `r max_lthsc`  
-Prog Cells: `r max_prog`  
+The highest expression figures for the different data sets are as follows:\
+HSPCs: `r max_hspc`\
+LTHSC: `r max_lthsc`\
+Prog Cells: `r max_prog`
 
-This shows us that our results are most certainly log transformed and we can continue with the analysis of the data without having to transform it further. 
+This shows us that our results are most certainly log transformed and we can continue with the analysis of the data without having to transform it further.
 
 ## Summary Statistics
 
@@ -122,40 +125,54 @@ Finally we want to summarize the data we have for each gene and cell in a way th
 #HSPC summary
 hspc_mean_cell <- apply(hspc, 2, mean)
 hspc_mean_gene <- apply(hspc, 1, mean)
-hspc_means <- c(hspc_mean_cell, hspc_mean_gene)
 
 hspc_sd_cell <- apply(hspc, 2, sd)
 hspc_sd_gene <- apply(hspc, 1, sd)
-hspc_sds <- c(hspc_sd_cell, hspc_sd_gene)
          ###Combine into data.frame##
-hspc_sum <- data.frame(Mean=hspc_means, SD=hspc_sds)
+hspc_sum_cell <- data.frame(Mean=hspc_mean_cell, SD=hspc_sd_cell)
+hspc_sum_gene <- data.frame(Mean=hspc_mean_gene, SD=hspc_sd_gene)
+        ###Tidy up the Row names into columns so they can be called         and moved about
+hspc_sum_cell <- cbind(Cell = rownames(hspc_sum_cell), hspc_sum_cell)
+rownames(hspc_sum_cell) <- NULL
 
+hspc_sum_gene <- cbind(Gene = rownames(hspc_sum_gene), hspc_sum_gene)
+rownames(hspc_sum_gene) <- NULL
 
+################################################################
 #LTHSC
 lthsc_mean_cell <- apply(lthsc, 2, mean)
 lthsc_mean_gene <- apply(lthsc, 1, mean)
-lthsc_means <- c(lthsc_mean_cell, lthsc_mean_gene)
 
 lthsc_sd_cell <- apply(lthsc, 2, sd)
 lthsc_sd_gene <- apply(lthsc, 1, sd)
-lthsc_sds <- c(lthsc_sd_cell, lthsc_sd_gene)
          ###Combine into data.frame##
-lthsc_sum <- data.frame(Mean=lthsc_means, SD=lthsc_sds)
+lthsc_sum_cell <- data.frame(Mean=lthsc_mean_cell, SD=lthsc_sd_cell)
+lthsc_sum_gene <- data.frame(Mean=lthsc_mean_gene, SD=lthsc_sd_gene)
+    ###Tidy up the Row names into columns so they can be called         and moved about
+lthsc_sum_cell <- cbind(Cell = rownames(lthsc_sum_cell), lthsc_sum_cell)
+rownames(lthsc_sum_cell) <- NULL
 
+lthsc_sum_gene <- cbind(Gene = rownames(lthsc_sum_gene), lthsc_sum_gene)
+rownames(lthsc_sum_gene) <- NULL
 
+##################################################################
 #Prog cells
 prog_mean_cell <- apply(prog, 2, mean)
 prog_mean_gene <- apply(prog, 1, mean)
-prog_means <- c(prog_mean_cell, prog_mean_gene)
 
 prog_sd_cell <- apply(prog, 2, sd)
 prog_sd_gene <- apply(prog, 1, sd)
-prog_sds <- c(prog_sd_cell, prog_sd_gene)
+
         ###Combine into data.frame##
-prog_sum <- data.frame(Mean=prog_means, SD=prog_sds)
+prog_sum_cell <- data.frame(Mean=prog_mean_cell, SD=prog_sd_cell)
+prog_sum_gene <- data.frame(Mean=prog_mean_gene, SD=prog_sd_gene)
+    ###Tidy up the Row names into columns so they can be called         and moved about
+prog_sum_cell <- cbind(Cell = rownames(prog_sum_cell), prog_sum_cell)
+rownames(prog_sum_cell) <- NULL
 
+prog_sum_gene <- cbind(Gene = rownames(prog_sum_gene), prog_sum_gene)
+rownames(prog_sum_gene) <- NULL
 ```
-
 
 ```{r tidy-data, include=FALSE}
 hspc_tidy <- hspc %>% 
@@ -175,6 +192,73 @@ prog_tidy <- prog %>%
 ```
 
 
+## Visual Summary  
+**NEED TO COME BACK TO THE FIRST PLOTS**  
+After that we want to use the summary statistics to produce plots that will summarize the data sets for us and give us an idea of the overall expression patterns we have. We will use 2 plots:  
+
+A good way to view the all of the expression data at once is to use a heat map. It's easier to digest visually but still gives us a good idea of expression patterns and early differences in the cell types.  
+
+
+```{r heatmap, echo=TRUE}
+hspc_num <- as.matrix(hspc_sum_gene)
+pheatmap(hspc_num, main = "pheatmap default")
+```
+
+The second graph is a parallel coordinate graph that we will use to plot the expression datas against each other.   
+```{r coordinate fig, echo = TRUE}
+
+```
+
+
+# Generating Results
+
+## findMarkers
+To use `r findMarkers` we first need to combine the different cell type datasets so we can compare them. Then we apply the function to return statistical analysis results that tell use if there is difference between each genes expression in the different cell types. The results will return for each gene the **p-value**, **q (FDR) value**, and the **logFC (fold change)**.  
+Now that we have these results saved we need to filter them to find our genes of interest.
+
+```{r combine data, include = FALSE}
+#Bind 2 of the data matrices together
+hspc_lthsc <- cbind(hspc, lthsc)
+hspc_prog <- cbind(hspc, prog)
+lthsc_prog <- cbind(lthsc, prog)
+
+#check theyve bound properly by checking the structure
+str(hspc_lthsc)
+str(hspc_prog)
+str(lthsc_prog)
+
+#create labels for the different cell types
+h_l_labels <- c(rep_len("HSPC", 701), rep_len("LTHSC", 155))
+h_p_labels <- c(rep_len("HSPC", 701), rep_len("Prog", 798))
+l_p_labels <- c(rep_len("LTHSC", 155), rep_len("Prog", 798))
+
+```
+
+
+```{r findmarkers, include = FALSE}
+results_hl <- findMarkers(hspc_lthsc, h_l_labels)
+results_hp <- findMarkers(hspc_prog, h_p_labels)
+results_lp <- findMarkers(lthsc_prog, l_p_labels)
+```
+
+## Filtering Results
+
+To determine which genes returned **statistically significant** results we need to filter them. This would usually done by p-value but since we have such a large data set we need to adjust the p-values to account for false positive results. The `r findMarkers` function has already calculated the FDR (False Discovery Rate) or q value for us so now all we have to do is filter the results so we **only keep the genes with a FDR<0.01**. Simply this means we accept that the filtered results will include genes that are, at most, 1% false positives.
+
+```{r FDR, include=FALSE}
+##  1% FDR 
+sig01_hl <- results$LTHSC[results$LTHSC$FDR<0.01,]
+## Number of genes that are significant:
+nrow(sig01_hl)
+
+##  5% FDR
+results$LTHSC[results$LTHSC$FDR<0.05,]
+
+##  10% FDR
+results$LTHSC[results$LTHSC$FDR<0.1,]
+```
+
+
+
 
 # References
-
