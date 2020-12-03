@@ -30,6 +30,7 @@ library(citr)
 library(GGally)
 library(pheatmap)
 library(scran)
+library(DESeq2)
 ```
 
 # Set Up, Tidy, and Summerise
@@ -200,21 +201,22 @@ A good way to view the all of the expression data at once is to use a heat map. 
 
 
 ```{r heatmap, echo=TRUE}
-hspc_num <- as.matrix(hspc_sum_gene)
-pheatmap(hspc_num, main = "pheatmap default")
+
+
 ```
 
 The second graph is a parallel coordinate graph that we will use to plot the expression datas against each other.   
-```{r coordinate fig, echo = TRUE}
+
+```{r coordinate fig}
 
 ```
 
 
-# Generating Results
+# Results  
 
-## findMarkers
-To use `r findMarkers` we first need to combine the different cell type datasets so we can compare them. Then we apply the function to return statistical analysis results that tell use if there is difference between each genes expression in the different cell types. The results will return for each gene the **p-value**, **q (FDR) value**, and the **logFC (fold change)**.  
-Now that we have these results saved we need to filter them to find our genes of interest.
+## findMarkers  
+To use `findMarkers` we first need to combine the different cell type datasets so we can compare them. Then we apply the function to return statistical analysis results that tell use if there is difference between each genes expression in the different cell types. The results will return for each gene the **p-value**, **q (FDR) value**, and the **logFC (fold change)**.  
+Now that we have these results saved we need to filter them to find our genes of interest.  
 
 ```{r combine data, include = FALSE}
 #Bind 2 of the data matrices together
@@ -241,24 +243,162 @@ results_hp <- findMarkers(hspc_prog, h_p_labels)
 results_lp <- findMarkers(lthsc_prog, l_p_labels)
 ```
 
-## Filtering Results
+## Filtering Results 
+### Statistical Significance
 
-To determine which genes returned **statistically significant** results we need to filter them. This would usually done by p-value but since we have such a large data set we need to adjust the p-values to account for false positive results. The `r findMarkers` function has already calculated the FDR (False Discovery Rate) or q value for us so now all we have to do is filter the results so we **only keep the genes with a FDR<0.01**. Simply this means we accept that the filtered results will include genes that are, at most, 1% false positives.
+To determine which genes returned **statistically significant** results we need to filter them. This would usually done by p-value but since we have such a large data set we need to adjust the p-values to account for false positive results. The `findMarkers` function has already calculated the FDR (False Discovery Rate) or q value for us so now all we have to do is filter the results so we **only keep the genes with a FDR<0.01**. Simply this means we accept that the filtered results will include genes that are, at most, 1% false positives.  
 
 ```{r FDR, include=FALSE}
 ##  1% FDR 
-sig01_hl <- results$LTHSC[results$LTHSC$FDR<0.01,]
+sig01_hl <- results_hl$LTHSC[results_hl$LTHSC$FDR<0.01,]
+sig01_hp <- results_hp$HSPC[results_hp$HSPC$FDR<0.01,]
+sig01_lp <- results_lp$LTHSC[results_lp$LTHSC$FDR<0.01,]
+
 ## Number of genes that are significant:
 nrow(sig01_hl)
+nrow(sig01_hp)
+nrow(sig01_lp)
 
 ##  5% FDR
-results$LTHSC[results$LTHSC$FDR<0.05,]
+sig05_hl <- results_hl$LTHSC[results_hl$LTHSC$FDR<0.05,]
+sig05_hp <- results_hp$HSPC[results_hp$HSPC$FDR<0.05,]
+sig05_lp <- results_lp$LTHSC[results_lp$LTHSC$FDR<0.05,]
+
+## Number of genes that are significant:
+nrow(sig05_hl)
+nrow(sig05_hp)
+nrow(sig05_lp)
 
 ##  10% FDR
-results$LTHSC[results$LTHSC$FDR<0.1,]
+sig10_hl <- results_hl$LTHSC[results_hl$LTHSC$FDR<0.10,]
+sig10_hp <- results_hp$HSPC[results_hp$HSPC$FDR<0.10,]
+sig10_lp <- results_lp$LTHSC[results_lp$LTHSC$FDR<0.10,]
+
+## Number of genes that are significant:
+nrow(sig10_hl)
+nrow(sig10_hp)
+nrow(sig10_lp)
 ```
 
+For context we filtered the results with FDR of 1%, 5% and 10% to see the difference in the number of statistically significant genes we are left with. The results can be seen in the table below:
 
+```{r FDR table}
+FDRtab <- matrix(c(nrow(sig01_hl), nrow(sig05_hl), nrow(sig10_hl),
+                     nrow(sig01_hp), nrow(sig05_hp), nrow(sig10_hp),
+                     nrow(sig01_lp), nrow(sig05_lp), nrow(sig10_lp)),
+                   ncol=3,byrow=TRUE)
+colnames(FDRtab) <- c("1%","5%","10%")
+rownames(FDRtab) <- c("HSPC/LTHSC","HSPC/Prog","LTHSC/Prog") 
+FDRtab <- as.table(FDRtab)
+
+knitr::kable(FDRtab,
+  caption = "The number of genes that have a statistically significant difference in expression between the cell types HSPC & LTHSC, LTHSC & Progenitor, and LTHSC & Progenitors respectively when the maximum FDR value is set to 1%, 5%, and 10%.")
+```
+
+### Relative Differences
+
+Next we need to take the results that we know are statistically significant and filter them by the actual difference in expression between cell populations. If the difference is too small it wouldn't matter if it is statistically significant or not as it will be unmeasurable in a practical setting and won't help us differ the cell types. The aim is to find genes that will act as indicators/markers for the cell type by their expression.
+
+To asses the difference in the expression we use the `logFC` part of our `findMarkers` results. This will tell us the difference between our log2 expression values for the genes. That is a difference of 2 would represent a 2 fold (2x) increase in expression. 
+
+
+### Absolute Expression
+To help us get a better understanding of the actual expression levels to ensure we again have high enough expression to be measurable in practice we need to look at the genes **absolute expression**. We can do this by using the mean expressions of each gene that we already calculated earlier.
+
+```{r abs exp, include =FALSE}
+        ##HSPC/LTHSC
+
+#sort the values so they are all in the same gene order
+results_hl$HSPC <- results_hl$HSPC[match(names(hspc_mean_gene), row.names(results_hl$HSPC)),]
+
+lthsc_mean_gene <- lthsc_mean_gene[match(names(hspc_mean_gene), names(lthsc_mean_gene))]
+
+#then add the means as a new column to the results
+#add means for both cell types
+results_hl$HSPC$h_mean <- hspc_mean_gene
+results_hl$HSPC$l_mean <- lthsc_mean_gene
+
+      ##HSPC/Prog
+
+#sort the values so they are all in the same gene order
+results_hp$HSPC <- results_hp$HSPC[match(names(hspc_mean_gene), row.names(results_hp$HSPC)),]
+
+prog_mean_gene <- prog_mean_gene[match(names(hspc_mean_gene), names(prog_mean_gene))]
+
+#then add the means as a new column to the results
+#add means for both cell types
+results_hp$HSPC$h_mean <- hspc_mean_gene
+results_hp$HSPC$p_mean <- prog_mean_gene
+
+      ##LTHSC/Prog
+
+#sort the values so they are all in the same gene order
+results_lp$LTHSC <- results_lp$LTHSC[match(names(lthsc_mean_gene), row.names(results_lp$LTHSC)),]
+
+prog_mean_gene <- prog_mean_gene[match(names(lthsc_mean_gene), names(prog_mean_gene))]
+
+#then add the means as a new column to the results
+#add means for both cell types
+results_lp$LTHSC$l_mean <- lthsc_mean_gene
+results_lp$LTHSC$p_mean <- prog_mean_gene
+
+```
+
+## Visual Results
+
+To view both the statistical significance (p-value) and the the biological significance (log2fold change) at the same time we can use a volcano plot.
+
+```{r volcano plot}
+#alter results to dataframe
+hl_results <- as.data.frame(results_hl$HSPC)
+lp_results <- as.data.frame(results_lp$LTHSC)
+hl_results$diffexpressed <- "NS"
+hl_results$diffexpressed[hl_results$logFC.LTHSC > 1.5 & 
+    hl_results$p.value < 0.05] <- "Over"
+hl_results$diffexpressed[hl_results$logFC.LTHSC < -1.5 & hl_results$p.value < 0.05] <- "Under"
+
+
+#plot volcanos
+ggplot(data=hl_results, aes(x=logFC.LTHSC, y=-log10(p.value), col=diffexpressed)) + geom_point() + theme_minimal() +
+  geom_vline(xintercept=c(-1.5, 1.5), col="red") +
+  geom_hline(yintercept=-log10(0.05), col="red") +
+  scale_color_manual(values=c("grey", "pink", "lightblue"))
+
+ggplot(data=lp_results, aes(x=logFC.Prog, y=-log10(p.value))) + geom_point() + theme_minimal()
+
+```
+
+We can also visualise results using an MA plot.
+
+```{r MA plot, include = FALSE}
+#create MA compliant dataframe
+#hl_ma_results <- hl_results 
+#hl_results[ -c(1,3:4) ]
+
+```
+
+## Differentially Expressed (DE) Genes
+
+For this project we will be investigating **LT-HSC** which means we want to identify genes that are different between the LTHSCs and the other 2 cell types. 
+
+```{r candidate genes, include=FALSE}
+#candidate genes from H/L results
+can1 <- filter(hl_results, p.value<0.05, FDR<0.01, summary.logFC<(-1)|summary.logFC>1)
+
+#candidate genes from L/P results
+can2 <- filter(lp_results, p.value<0.05, FDR<0.01, summary.logFC<(-1)|summary.logFC>1)
+
+#candidate genes that are found in both groups
+can_genes_names <- intersect(row.names(can1), row.names(can2))
+can_genes_names
+cat(can_genes_names, sep='\n')
+
+can_genes <- can1[row.names(can1) %in% can_genes_names, ]
+```
+
+## Biological Investigation
+
+Now we can use our list of differentially expressed (DE) genes and look at their biological function and orthologs to see if we can find any correlation between the statistically interesting genes and the biologically interesting ones. First we want to run a GO enrichment analysis. Since the genes of our original dataset were already filtered to only include secretome genes then we cannot assume that all the information given by the g:profiler software is inherent to our cell type. We must separate out that information from the information on enriched genes.
 
 
 # References
